@@ -107,6 +107,23 @@
       });
     });
 
+    // CSP 違反イベント。共有シート由来の内部処理が CSP を踏んでいるかを確認する
+    document.addEventListener('securitypolicyviolation', function (e) {
+      logEvent('CSP_VIOLATION', {
+        violatedDirective: e.violatedDirective,
+        effectiveDirective: e.effectiveDirective,
+        blockedURI: e.blockedURI,
+        sourceFile: e.sourceFile,
+        lineNumber: e.lineNumber,
+        columnNumber: e.columnNumber,
+        sample: e.sample,
+        disposition: e.disposition,
+        statusCode: e.statusCode,
+        documentURI: e.documentURI,
+        referrer: e.referrer,
+      });
+    });
+
     ['visibilitychange', 'pagehide', 'pageshow', 'freeze', 'resume'].forEach(function (name) {
       document.addEventListener(name, function () {
         logEvent(name, 'visibility=' + document.visibilityState);
