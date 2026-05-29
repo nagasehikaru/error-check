@@ -10,7 +10,7 @@
     #log { background: #111; color: #0f0; padding: 12px; border-radius: 4px;
            white-space: pre-wrap; word-break: break-all; font-family: monospace;
            font-size: 12px; max-height: 60vh; overflow-y: auto; }
-    button { padding: 8px 12px; margin: 4px 0; }
+    button { padding: 8px 12px; margin: 4px 4px 4px 0; }
   </style>
 </head>
 <body>
@@ -18,8 +18,12 @@
   <p>
     Safari の <strong>共有ボタン</strong> を押す → このページに戻る → 下のログを確認。
   </p>
-  <button onclick="document.getElementById('log').textContent=''">ログをクリア</button>
-  <button onclick="logEvent('manual', 'click test')">手動ログ</button>
+  <div>
+    <button onclick="document.getElementById('log').textContent=''">ログをクリア</button>
+    <button onclick="logEvent('manual', 'click test')">手動ログ</button>
+    <button onclick="dumpScripts()">script タグ一覧</button>
+    <button onclick="dumpResources()">読み込みリソース一覧</button>
+  </div>
   <div id="log">起動待ち...</div>
 
   <script>
@@ -30,8 +34,40 @@
       logEl.textContent = line + '\n' + logEl.textContent;
     }
 
+    // ページ内 script タグの src 一覧
+    function dumpScripts() {
+      var scripts = Array.prototype.slice.call(document.scripts);
+      logEvent('SCRIPTS', scripts.map(function (s) {
+        return { src: s.src || '(inline)', async: s.async, defer: s.defer, crossOrigin: s.crossOrigin };
+      }));
+    }
+
+    // PerformanceObserver で蓄積したリソースを直近 N 秒分ダンプ
+    var resourceLog = [];
+    function dumpResources() {
+      var now = performance.now();
+      logEvent('RESOURCES_RECENT', resourceLog
+        .filter(function (r) { return now - r.startTime < 10000; })
+        .map(function (r) {
+          return { type: r.initiatorType, url: r.name, ago_ms: Math.round(now - r.startTime) };
+        }));
+    }
+
+    // すべてのリソース読み込みを記録
+    try {
+      var po = new PerformanceObserver(function (list) {
+        for (var i = 0; i < list.getEntries().length; i++) {
+          resourceLog.push(list.getEntries()[i]);
+        }
+      });
+      po.observe({ type: 'resource', buffered: true });
+    } catch (e) {
+      logEvent('PO_INIT_FAIL', String(e));
+    }
+
+    // エラー発生時、原因スクリプトを特定するためのヒントをまとめて出す
     window.addEventListener('error', function (e) {
-      logEvent('ERROR', {
+      var info = {
         message: e.message,
         filename: e.filename,
         lineno: e.lineno,
@@ -41,7 +77,25 @@
         errorStack: e.error && String(e.error.stack || '').slice(0, 300),
         targetTagName: e.target && e.target.tagName,
         targetSrc: e.target && (e.target.src || e.target.href),
-      });
+        // muted errors で filename が消されても、直近に読まれた script の URL は分かる
+        currentScriptSrc: document.currentScript && document.currentScript.src,
+        documentScripts: Array.prototype.map.call(document.scripts, function (s) {
+          return s.src || '(inline)';
+        }),
+      };
+
+      // PerformanceObserver から直近 5 秒以内に読まれたスクリプト系リソース
+      try {
+        var now = performance.now();
+        info.recentScriptResources = resourceLog
+          .filter(function (r) {
+            return now - r.startTime < 5000 &&
+              (r.initiatorType === 'script' || /\.js(\?|$)/.test(r.name));
+          })
+          .map(function (r) { return { url: r.name, ago_ms: Math.round(now - r.startTime) }; });
+      } catch (_) {}
+
+      logEvent('ERROR', info);
     }, true);
 
     window.addEventListener('unhandledrejection', function (e) {
