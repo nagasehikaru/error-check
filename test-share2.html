@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>iOS Share Button Test</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; padding: 16px; line-height: 1.5; font-size: 14px; }
+    h1 { font-size: 18px; }
+    #log { background: #111; color: #0f0; padding: 12px; border-radius: 4px;
+           white-space: pre-wrap; word-break: break-all; font-family: monospace;
+           font-size: 12px; max-height: 60vh; overflow-y: auto; }
+    button { padding: 8px 12px; margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <h1>iOS Share Button Test</h1>
+  <p>
+    Safari の <strong>共有ボタン</strong> を押す → このページに戻る → 下のログを確認。
+  </p>
+  <button onclick="document.getElementById('log').textContent=''">ログをクリア</button>
+  <button onclick="logEvent('manual', 'click test')">手動ログ</button>
+  <div id="log">起動待ち...</div>
+
+  <script>
+    var logEl = document.getElementById('log');
+    function logEvent(tag, payload) {
+      var line = '[' + new Date().toISOString().slice(11, 23) + '] [' + tag + '] '
+                 + (typeof payload === 'string' ? payload : JSON.stringify(payload));
+      logEl.textContent = line + '\n' + logEl.textContent;
+    }
+
+    window.addEventListener('error', function (e) {
+      logEvent('ERROR', {
+        message: e.message,
+        filename: e.filename,
+        lineno: e.lineno,
+        colno: e.colno,
+        hasError: !!e.error,
+        errorMessage: e.error && e.error.message,
+        errorStack: e.error && String(e.error.stack || '').slice(0, 300),
+        targetTagName: e.target && e.target.tagName,
+        targetSrc: e.target && (e.target.src || e.target.href),
+      });
+    }, true);
+
+    window.addEventListener('unhandledrejection', function (e) {
+      logEvent('REJECT', {
+        reasonType: e.reason && e.reason.constructor && e.reason.constructor.name,
+        reasonMessage: e.reason && e.reason.message,
+        reasonStack: e.reason && String(e.reason.stack || '').slice(0, 300),
+        reasonString: String(e.reason),
+      });
+    });
+
+    ['visibilitychange', 'pagehide', 'pageshow', 'freeze', 'resume'].forEach(function (name) {
+      document.addEventListener(name, function () {
+        logEvent(name, 'visibility=' + document.visibilityState);
+      });
+    });
+
+    ['blur', 'focus'].forEach(function (name) {
+      window.addEventListener(name, function () {
+        logEvent('window:' + name, '');
+      });
+    });
+
+    logEvent('BOOT', 'UA=' + navigator.userAgent);
+  </script>
+</body>
+</html>
